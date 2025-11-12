@@ -20,16 +20,38 @@ st.markdown("""
 /* 폼 카드 */
 .form-card{border:1px solid #eee;border-radius:10px;padding:.38rem .45rem;background:#fff}
 
-/* 2x2 고정 컨테이너: Streamlit의 모바일 스택 규칙을 무력화 */
-.fixed-two-col [data-testid="stHorizontalBlock"]{
+/* ============ 진짜 2x2 고정 ============ */
+/* 1) 열 블록(행) 자체를 가로 정렬로 강제 */
+.fixed-two-col div[data-testid="stHorizontalBlock"]{
+  display:-webkit-box !important;
+  display:-webkit-flex !important;
   display:flex !important;
-  flex-wrap:wrap !important;
+  -webkit-box-orient: horizontal !important;
+  -webkit-box-direction: normal !important;
+  -webkit-flex-direction: row !important;
+          flex-direction: row !important;
+  -webkit-flex-wrap: wrap !important;
+          flex-wrap: wrap !important;
   gap:.35rem .45rem !important;
 }
-.fixed-two-col [data-testid="column"]{
-  flex:0 0 calc(50% - .45rem) !important;
-  width:calc(50% - .45rem) !important;
+
+/* 2) 각 column을 정확히 50%로 고정 */
+.fixed-two-col div[data-testid="column"]{
+  -webkit-box-flex: 0 !important;
+  -webkit-flex: 0 0 50% !important;
+          flex: 0 0 50% !important;
+  max-width:50% !important;
+  width:50% !important;
   min-width:0 !important;
+  box-sizing:border-box !important;
+}
+
+/* 3) Streamlit이 넣는 모바일 스택 규칙(열 전체폭) 무력화 */
+@media (max-width: 10000px){
+  .fixed-two-col div[data-testid="column"]{
+    -webkit-flex-basis:50% !important;
+            flex-basis:50% !important;
+  }
 }
 
 /* 라벨/인풋 초미니화 */
@@ -47,15 +69,8 @@ button[kind="primary"]{
 
 /* 표 간격 축소 */
 .stDataFrame{margin-top:.35rem}
-
-/* 아주 작은 화면에서도 2열 유지 */
-@media (max-width:360px){
-  .app-title{font-size:.98rem}
-  .fixed-two-col [data-testid="column"]{
-    flex:0 0 50% !important; width:50% !important;
-  }
-}
 </style>
+
 """, unsafe_allow_html=True)
 
 # ========== 헤더 ==========
@@ -191,3 +206,4 @@ if submit:
         st.error(f"요청 실패: {e}")
     except Exception as e:
         st.error(f"오류: {e}")
+
