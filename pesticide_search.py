@@ -1,4 +1,4 @@
-# pesticide_search.py — 초미니+2x2 강제 그리드(모바일 픽스)
+# pesticide_search.py — 2x2 고정(모바일 포함), 초미니 UI
 import streamlit as st
 import requests
 import xml.etree.ElementTree as ET
@@ -8,56 +8,61 @@ import streamlit.components.v1 as components
 
 st.set_page_config(page_title="농약 검색기", layout="centered")
 
-# ========= CSS (라벨 커스텀 + 2x2 고정 그리드 + 초미니 위젯) =========
+# ========== CSS: 2x2 고정 + 초미니 입력/버튼 ==========
 st.markdown("""
 <style>
 /* 전체 여백 최소화 */
 .main .block-container{padding-top:.25rem;padding-bottom:.4rem;max-width:860px}
 
-/* 제목 */
+/* 제목 작게 */
 .app-title{font-weight:800;font-size:1.06rem;letter-spacing:-.02em;margin:.05rem 0 .35rem}
 
-/* 카드 */
+/* 폼 카드 */
 .form-card{border:1px solid #eee;border-radius:10px;padding:.38rem .45rem;background:#fff}
 
-/* 2x2 GRID: 항상 2열 유지(아주 작은 폭에서도) */
-.form-grid{
-  display:grid;
-  grid-template-columns:repeat(2,minmax(0,1fr));
-  grid-auto-rows:auto;
-  gap:.35rem .45rem;
+/* 2x2 고정 컨테이너: Streamlit의 모바일 스택 규칙을 무력화 */
+.fixed-two-col [data-testid="stHorizontalBlock"]{
+  display:flex !important;
+  flex-wrap:wrap !important;
+  gap:.35rem .45rem !important;
+}
+.fixed-two-col [data-testid="column"]{
+  flex:0 0 calc(50% - .45rem) !important;
+  width:calc(50% - .45rem) !important;
+  min-width:0 !important;
 }
 
-/* 라벨을 우리가 직접 그리기 → Streamlit 라벨 공간 제거 */
-.lbl{font-size:.84rem;font-weight:600;margin:0 0 .15rem 2px;display:block;letter-spacing:-.01em}
-
-/* 입력박스 초미니화 */
+/* 라벨/인풋 초미니화 */
+div[data-testid="stTextInput"] label{font-size:.86rem;margin-bottom:.15rem}
 div[data-testid="stTextInput"] input{
-  height:32px; padding:4px 8px; font-size:14px; border-radius:8px;
+  height:32px;padding:4px 8px;font-size:14px;border-radius:8px;
 }
 div[data-testid="stTextInput"]{margin:0!important}
 
-/* 버튼 초미니 */
+/* 버튼 초소형 */
 button[kind="primary"]{
-  padding:4px 10px!important; font-size:.84rem!important; line-height:1!important; border-radius:9px!important;
+  padding:4px 10px!important;font-size:.84rem!important;
+  line-height:1!important;border-radius:9px!important;
 }
 
-/* 표 여백 축소 */
+/* 표 간격 축소 */
 .stDataFrame{margin-top:.35rem}
 
-/* 더 작은 화면에서도 2열 강제 */
+/* 아주 작은 화면에서도 2열 유지 */
 @media (max-width:360px){
   .app-title{font-size:.98rem}
-  .form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .fixed-two-col [data-testid="column"]{
+    flex:0 0 50% !important; width:50% !important;
+  }
 }
 </style>
 """, unsafe_allow_html=True)
 
-# ========= 헤더 =========
+# ========== 헤더 ==========
 st.markdown('<div class="app-title">🌿 현별이 농약 검색기</div>', unsafe_allow_html=True)
 
 API_URL = "https://psis.rda.go.kr/openApi/service.do"
-API_KEY = st.secrets["PSIS_API_KEY"]  # Secrets에 PSIS_API_KEY 넣어둔 값
+API_KEY = st.secrets["PSIS_API_KEY"]  # Streamlit Secrets에 PSIS_API_KEY 등록
 
 # ---------- 유틸 ----------
 def pick(d: dict, *keys, default="-"):
@@ -145,38 +150,28 @@ def run_search(brand: str, crop: str, item: str, company: str):
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
 
-# ---------- 폼 (라벨은 우리가 직접, Streamlit 라벨은 숨김) ----------
+# ========== 폼: 2×2 고정 ==========
 with st.form(key="search_form", clear_on_submit=False):
-    st.markdown('<div class="form-card">', unsafe_allow_html=True)
-    st.markdown('<div class="form-grid">', unsafe_allow_html=True)
+    st.markdown('<div class="form-card fixed-two-col">', unsafe_allow_html=True)
 
-    # col1: 상표명
-    st.markdown('<label class="lbl">상표명</label>', unsafe_allow_html=True)
-    brand = st.text_input("", key="brand", label_visibility="collapsed").strip()
+    # 1행: 상표명 | 작물명  (st.columns 사용, CSS로 2열 강제)
+    c1, c2 = st.columns(2, gap="small")
+    with c1: brand = st.text_input("상표명", key="brand").strip()
+    with c2: crop  = st.text_input("작물명", key="crop").strip()
 
-    # col2: 작물명
-    st.markdown('<label class="lbl">작물명</label>', unsafe_allow_html=True)
-    crop  = st.text_input("", key="crop", label_visibility="collapsed").strip()
+    # 2행: 품목명 | 회사명
+    c3, c4 = st.columns(2, gap="small")
+    with c3: item    = st.text_input("품목명", key="item").strip()
+    with c4: company = st.text_input("회사명", key="company").strip()
 
-    # col3: 품목명
-    st.markdown('<label class="lbl">품목명</label>', unsafe_allow_html=True)
-    item  = st.text_input("", key="item", label_visibility="collapsed").strip()
+    # 버튼
+    left, _ = st.columns([1,3])
+    with left: submit = st.form_submit_button("🔎 검색")
 
-    # col4: 회사명
-    st.markdown('<label class="lbl">회사명</label>', unsafe_allow_html=True)
-    company = st.text_input("", key="company", label_visibility="collapsed").strip()
-
-    st.markdown('</div>', unsafe_allow_html=True)  # /form-grid
-
-    # 검색 버튼 (초소형)
-    btn_col, _ = st.columns([1, 3])
-    with btn_col:
-        submit = st.form_submit_button("🔎 검색")
-
-    st.markdown('</div>', unsafe_allow_html=True)  # /form-card
+    st.markdown("</div>", unsafe_allow_html=True)
 
 if submit:
-    # 제출 후 키보드 자동 내림 + 상단 스크롤
+    # 제출 후 키보드 내리고 상단으로 이동
     components.html("""
       <script>
         setTimeout(function(){
