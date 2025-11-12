@@ -1,4 +1,4 @@
-# pesticide_search.py  — 초미니 모바일 모드
+# pesticide_search.py — 초미니+2x2 강제 그리드(모바일 픽스)
 import streamlit as st
 import requests
 import xml.etree.ElementTree as ET
@@ -8,53 +8,56 @@ import streamlit.components.v1 as components
 
 st.set_page_config(page_title="농약 검색기", layout="centered")
 
-# ====== 초미니 CSS (여백/폰트/입력 높이/버튼 모두 최소화) ======
+# ========= CSS (라벨 커스텀 + 2x2 고정 그리드 + 초미니 위젯) =========
 st.markdown("""
 <style>
-/* 메인 컨테이너 여백 극소화 */
+/* 전체 여백 최소화 */
 .main .block-container{padding-top:.25rem;padding-bottom:.4rem;max-width:860px}
 
-/* 제목 초소형 */
+/* 제목 */
 .app-title{font-weight:800;font-size:1.06rem;letter-spacing:-.02em;margin:.05rem 0 .35rem}
 
-/* 초미니 카드 */
+/* 카드 */
 .form-card{border:1px solid #eee;border-radius:10px;padding:.38rem .45rem;background:#fff}
 
-/* 2x2 그리드: 간격 최소화 */
-.form-card [data-testid="stColumns"]{display:flex;flex-wrap:wrap;gap:.35rem .45rem}
-.form-card [data-testid="column"]{flex:1 1 calc(50% - .45rem);width:calc(50% - .45rem)!important;min-width:0}
+/* 2x2 GRID: 항상 2열 유지(아주 작은 폭에서도) */
+.form-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  grid-auto-rows:auto;
+  gap:.35rem .45rem;
+}
 
-/* 라벨·인풋 초소형화 */
-div[data-testid="stTextInput"] label{font-size:.86rem;margin-bottom:.15rem}
+/* 라벨을 우리가 직접 그리기 → Streamlit 라벨 공간 제거 */
+.lbl{font-size:.84rem;font-weight:600;margin:0 0 .15rem 2px;display:block;letter-spacing:-.01em}
+
+/* 입력박스 초미니화 */
 div[data-testid="stTextInput"] input{
-  height:34px; padding:4px 8px; font-size:14.5px;
-  border-radius:8px;
+  height:32px; padding:4px 8px; font-size:14px; border-radius:8px;
 }
+div[data-testid="stTextInput"]{margin:0!important}
 
-/* 버튼 초소형 */
+/* 버튼 초미니 */
 button[kind="primary"]{
-  padding:4px 10px!important; font-size:.86rem!important;
-  line-height:1!important; border-radius:9px!important;
+  padding:4px 10px!important; font-size:.84rem!important; line-height:1!important; border-radius:9px!important;
 }
 
-/* 표 위 여백 축소 */
+/* 표 여백 축소 */
 .stDataFrame{margin-top:.35rem}
 
-/* 더 작은 화면(≤400px)일 때 더 줄이기 */
-@media (max-width:400px){
-  .app-title{font-size:1.0rem}
-  div[data-testid="stTextInput"] label{font-size:.82rem}
-  div[data-testid="stTextInput"] input{height:32px; font-size:14px}
-  button[kind="primary"]{padding:4px 8px!important; font-size:.84rem!important}
+/* 더 작은 화면에서도 2열 강제 */
+@media (max-width:360px){
+  .app-title{font-size:.98rem}
+  .form-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 </style>
 """, unsafe_allow_html=True)
 
-# ====== 헤더 ======
+# ========= 헤더 =========
 st.markdown('<div class="app-title">🌿 현별이 농약 검색기</div>', unsafe_allow_html=True)
 
 API_URL = "https://psis.rda.go.kr/openApi/service.do"
-API_KEY = st.secrets["PSIS_API_KEY"]  # Streamlit Secrets에 PSIS_API_KEY 등록
+API_KEY = st.secrets["PSIS_API_KEY"]  # Secrets에 PSIS_API_KEY 넣어둔 값
 
 # ---------- 유틸 ----------
 def pick(d: dict, *keys, default="-"):
@@ -105,6 +108,7 @@ def run_search(brand: str, crop: str, item: str, company: str):
     if root.findtext("errorCode"):
         st.warning(f"API 오류: {root.findtext('errorCode')} - {root.findtext('errorMsg') or ''}")
         return
+
     items = root.findall(".//item")
     if not items:
         st.warning("검색 결과가 없습니다."); return
@@ -131,6 +135,7 @@ def run_search(brand: str, crop: str, item: str, company: str):
         })
     df = pd.DataFrame(rows)
     st.dataframe(df, width="stretch")
+
     buf = BytesIO()
     with pd.ExcelWriter(buf, engine="openpyxl") as w:
         df.to_excel(w, index=False, sheet_name="검색결과")
@@ -140,29 +145,38 @@ def run_search(brand: str, crop: str, item: str, company: str):
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
 
-# ---------- 초미니 폼: 2×2 그리드 ----------
+# ---------- 폼 (라벨은 우리가 직접, Streamlit 라벨은 숨김) ----------
 with st.form(key="search_form", clear_on_submit=False):
     st.markdown('<div class="form-card">', unsafe_allow_html=True)
+    st.markdown('<div class="form-grid">', unsafe_allow_html=True)
 
-    # 1행: 상표명 | 작물명
-    c1, c2 = st.columns(2, gap="small")
-    with c1: brand = st.text_input("상표명", key="brand").strip()
-    with c2: crop  = st.text_input("작물명", key="crop").strip()
+    # col1: 상표명
+    st.markdown('<label class="lbl">상표명</label>', unsafe_allow_html=True)
+    brand = st.text_input("", key="brand", label_visibility="collapsed").strip()
 
-    # 2행: 품목명 | 회사명
-    c3, c4 = st.columns(2, gap="small")
-    with c3: item    = st.text_input("품목명", key="item").strip()
-    with c4: company = st.text_input("회사명", key="company").strip()
+    # col2: 작물명
+    st.markdown('<label class="lbl">작물명</label>', unsafe_allow_html=True)
+    crop  = st.text_input("", key="crop", label_visibility="collapsed").strip()
 
-    # 검색 버튼(초소형)
+    # col3: 품목명
+    st.markdown('<label class="lbl">품목명</label>', unsafe_allow_html=True)
+    item  = st.text_input("", key="item", label_visibility="collapsed").strip()
+
+    # col4: 회사명
+    st.markdown('<label class="lbl">회사명</label>', unsafe_allow_html=True)
+    company = st.text_input("", key="company", label_visibility="collapsed").strip()
+
+    st.markdown('</div>', unsafe_allow_html=True)  # /form-grid
+
+    # 검색 버튼 (초소형)
     btn_col, _ = st.columns([1, 3])
     with btn_col:
         submit = st.form_submit_button("🔎 검색")
 
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)  # /form-card
 
 if submit:
-    # 제출 즉시 포커스 해제(키보드 내림) + 상단으로 스크롤
+    # 제출 후 키보드 자동 내림 + 상단 스크롤
     components.html("""
       <script>
         setTimeout(function(){
