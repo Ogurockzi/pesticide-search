@@ -1,0 +1,8 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Streamlit local secrets (Cloud에는 올리지 마세요)
+.streamlit/secrets.toml
