@@ -1,15 +1,71 @@
+# pesticide_search.py
 import streamlit as st
 import requests
 import xml.etree.ElementTree as ET
 import pandas as pd
 from io import BytesIO
+import streamlit.components.v1 as components
 
 st.set_page_config(page_title="농약 검색기", layout="centered")
-st.title("🌿 농약 검색기 (by 현별)")
+
+# ====== 스타일(모바일 최적화) ======
+st.markdown("""
+<style>
+/* 기본 제목 크기 줄이기 */
+h1, h2, h3 { margin: 0.2rem 0 0.6rem 0; }
+
+/* 우리 앱 제목 전용 */
+.app-title { 
+  font-weight: 800;
+  font-size: 1.6rem; 
+  line-height: 1.15; 
+  letter-spacing: -0.02em;
+}
+.app-sub { 
+  font-weight: 900; 
+  font-size: 1.6rem; 
+  line-height: 1.15; 
+}
+
+/* 입력 라벨/인풋 컴팩트화 */
+div[data-testid="stTextInput"] label { 
+  font-size: 0.95rem; 
+  margin-bottom: 0.25rem;
+}
+div[data-testid="stTextInput"] input {
+  height: 44px; 
+  padding: 6px 10px; 
+  font-size: 16px;
+}
+
+/* 버튼 컴팩트 */
+button[kind="primary"] {
+  padding: 6px 12px !important;
+  font-size: 0.95rem !important;
+  border-radius: 10px !important;
+}
+
+/* 표 폭 채우기 */
+section[data-testid="stMain"] .stDataFrame { margin-top: 0.6rem; }
+
+/* 모바일 전용 더 과감하게 줄이기 */
+@media (max-width: 480px) {
+  .app-title { font-size: 1.35rem; }
+  .app-sub   { font-size: 1.35rem; }
+  div[data-testid="stTextInput"] label { font-size: 0.9rem; }
+  div[data-testid="stTextInput"] input {
+    height: 40px; padding: 6px 10px; font-size: 16px;
+  }
+  button[kind="primary"] { padding: 6px 10px !important; font-size: 0.9rem !important; }
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ====== 헤더 ======
+st.markdown('<div class="app-title">🌿 현벼리 농약 검색기 <span class="app-sub"></span></div>', unsafe_allow_html=True)
 
 API_URL = "https://psis.rda.go.kr/openApi/service.do"
-# 🔐 키는 Streamlit Cloud의 Secrets에 PSIS_API_KEY로 넣어주세요.
-API_KEY = st.secrets["PSIS_API_KEY"]
+API_KEY = st.secrets["PSIS_API_KEY"]  # Streamlit Secrets에 저장
 
 # ---------- 유틸 ----------
 def pick(d: dict, *keys, default="-"):
@@ -123,7 +179,7 @@ def run_search(brand: str, crop: str, item: str, company: str):
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
 
-# ---------- 폼 제출 (엔터 검색 & IME 중복 방지) ----------
+# ---------- 폼: 엔터 제출 + IME 중복 방지 + 제출 뒤 키보드 내리기 ----------
 with st.form(key="search_form", clear_on_submit=False):
     c1, c2, c3, c4 = st.columns(4)
     with c1: brand = st.text_input("상표명", key="brand").strip()
@@ -133,6 +189,15 @@ with st.form(key="search_form", clear_on_submit=False):
     submit = st.form_submit_button("🔎 검색")
 
 if submit:
+    # 제출 직후 포커스 해제(모바일 키보드 내림) + 상단 스크롤
+    components.html("""
+        <script>
+          setTimeout(function(){
+            if (document.activeElement) { document.activeElement.blur(); }
+            window.scrollTo({top: 0, behavior: 'smooth'});
+          }, 60);
+        </script>
+    """, height=0)
     try:
         run_search(
             st.session_state.get("brand", "").strip(),
@@ -144,4 +209,3 @@ if submit:
         st.error(f"요청 실패: {e}")
     except Exception as e:
         st.error(f"오류: {e}")
-
