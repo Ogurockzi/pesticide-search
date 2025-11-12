@@ -5,7 +5,7 @@ import pandas as pd
 from io import BytesIO
 
 st.set_page_config(page_title="농약 검색기", layout="centered")
-st.title("🌿 농약 검색기 (PSIS OpenAPI)")
+st.title("🌿 농약 검색기 (by 현별)")
 
 API_URL = "https://psis.rda.go.kr/openApi/service.do"
 # 🔐 키는 Streamlit Cloud의 Secrets에 PSIS_API_KEY로 넣어주세요.
@@ -144,3 +144,4 @@ if submit:
         st.error(f"요청 실패: {e}")
     except Exception as e:
         st.error(f"오류: {e}")
+
