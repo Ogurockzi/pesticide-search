@@ -1,4 +1,4 @@
-# pesticide_search.py — 안정판: 검색 100% + PC 2×2 / 모바일 초미니 1열
+# pesticide_search.py — 1열 고정 (상표명→작물명→품목명→회사명), 엔터로 즉시 검색, 버튼 없음
 import streamlit as st
 import requests
 import xml.etree.ElementTree as ET
@@ -7,28 +7,30 @@ from io import BytesIO
 
 st.set_page_config(page_title="현별이 농약 검색기", layout="centered")
 
-# ---- 스타일(여백/높이 최소화) ----
+# ===== 스타일: 타이틀 = 라벨과 동일 크기, 여백/높이 최소화 =====
 st.markdown("""
 <style>
 .main .block-container{padding-top:.35rem;padding-bottom:.6rem;max-width:860px}
-h1{font-size:1.05rem;margin:.2rem 0 .5rem;font-weight:800}
-div[data-testid="stTextInput"] label{font-size:.9rem;margin-bottom:.12rem}
-div[data-testid="stTextInput"] input{height:34px;padding:4px 8px;font-size:14px;border-radius:8px}
-button[kind="primary"]{padding:6px 12px!important;font-size:.9rem!important;border-radius:9px!important}
+.app-title{font-size:.90rem;font-weight:800;letter-spacing:-.01em;margin:.15rem 0 .45rem}
+div[data-testid="stTextInput"] label{font-size:.90rem;margin-bottom:.12rem}
+div[data-testid="stTextInput"] input{
+  height:34px;padding:4px 8px;font-size:14px;border-radius:8px
+}
 .stDataFrame{margin-top:.45rem}
 @media (max-width:480px){
-  div[data-testid="stTextInput"] label{font-size:.88rem}
+  .app-title{font-size:.90rem}
+  div[data-testid="stTextInput"] label{font-size:.90rem}
   div[data-testid="stTextInput"] input{height:32px;font-size:13.5px}
-  button[kind="primary"]{padding:5px 10px!important;font-size:.86rem!important}
 }
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🌿 현별이 농약 검색기")
+st.markdown('<div class="app-title">🌿 현별이 농약 검색기</div>', unsafe_allow_html=True)
 
 API_URL = "https://psis.rda.go.kr/openApi/service.do"
-API_KEY = st.secrets["PSIS_API_KEY"]  # Streamlit Cloud Secrets에 PSIS_API_KEY 등록돼 있어야 함
+API_KEY = st.secrets["PSIS_API_KEY"]  # Streamlit Cloud Secrets에 PSIS_API_KEY 넣어둔 값
 
+# ===== 유틸 =====
 def pick(d: dict, *keys, default="-"):
     for k in keys:
         v = d.get(k)
@@ -89,10 +91,13 @@ def run_search(brand: str, crop: str, item: str, company: str):
         disease_use_seq = pick(flat, "diseaseUseSeq", "diseaseSeq", default="")
         use_time = pick(flat, "useSuittime", "useSeason", "safeUsePrid", "useLimit")
         use_num  = pick(flat, "useNum", "limitNum")
+
+        # 상세 조회로 보강
         if (use_time == "-" or use_num == "-") and pesti_code and disease_use_seq:
             detail = svc02_detail(pesti_code, disease_use_seq)
             if use_time == "-": use_time = detail["use_time"]
             if use_num  == "-": use_num  = detail["use_num"]
+
         rows.append({
             "상표명": pick(flat, "prdlstNm", "pestiBrandName"),
             "작물명": pick(flat, "cropNm", "cropName"),
@@ -102,6 +107,7 @@ def run_search(brand: str, crop: str, item: str, company: str):
             "품목명": pick(flat, "itemNm", "pestiKorName", "formulationNm"),
             "사용량": pick(flat, "useDilut", "dilutUnit"),
         })
+
     df = pd.DataFrame(rows)
     st.dataframe(df, width="stretch")
 
@@ -115,18 +121,19 @@ def run_search(brand: str, crop: str, item: str, company: str):
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
 
-# ---- 폼 (PC 2×2 / 모바일 1열; 모바일은 높이 극소) ----
-with st.form("search_form", clear_on_submit=False):
-    c1, c2 = st.columns(2, gap="small")
-    with c1:
-        brand = st.text_input("상표명", key="brand").strip()
-        item  = st.text_input("품목명", key="item").strip()
-    with c2:
-        crop    = st.text_input("작물명", key="crop").strip()
-        company = st.text_input("회사명", key="company").strip()
-    submit = st.form_submit_button("🔎 검색")
+# ===== 엔터로 즉시 검색 (버튼 없이) =====
+def _trigger_search():
+    st.session_state["do_search"] = True
 
-if submit:
+# 입력 순서: 상표명 → 작물명 → 품목명 → 회사명 (항상 1열)
+brand   = st.text_input("상표명",  key="brand",   on_change=_trigger_search).strip()
+crop    = st.text_input("작물명",  key="crop",    on_change=_trigger_search).strip()
+item    = st.text_input("품목명",  key="item",    on_change=_trigger_search).strip()
+company = st.text_input("회사명",  key="company", on_change=_trigger_search).strip()
+
+# 엔터 입력(on_change) 또는 이전 검색 결과 유지 후 재입력 시 자동 실행
+if st.session_state.get("do_search"):
+    st.session_state["do_search"] = False
     try:
         run_search(brand, crop, item, company)
     except requests.HTTPError as e:
